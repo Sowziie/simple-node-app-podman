@@ -4,13 +4,14 @@ stages:
   - docker
   - scan
 
+
 variables:
   DOCKER_DRIVER: "overlay2"
   DOCKER_TLS_CERTDIR: ""
   GIT_COMMIT_SHORT: "$CI_COMMIT_SHORT_SHA"
 
   # SonarQube
-  SONAR_HOST_URL: "http://3.218.72.101:9000"
+  SONAR_HOST_URL: "http://13.222.133.90:9000"
   SONAR_PROJECT_KEY: "NodeApp"
 
   # DockerHub
