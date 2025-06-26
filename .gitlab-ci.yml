@@ -36,7 +36,7 @@ build:
     - npm test || echo "⚠️ Aucun test défini"
     - echo "📦 Packaging de l'application..."
     - mkdir -p dist
-    - zip -r dist/nodeapp.zip . -x node_modules/\* .git/\* dist/\*
+    - zip -r dist/nodeapp.zip . -x "node_modules/*" ".git/*" "dist/*"
   artifacts:
     paths:
       - dist/nodeapp.zip
@@ -105,12 +105,12 @@ scan:
 deploy:
   stage: deploy
   image: curlimages/curl:latest
+  dependencies:
+    - build
   script:
     - echo "📦 Déploiement de l’artefact vers Nexus..."
     - |
       curl -v --fail --user "${NEXUS_USER}:${NEXUS_PASS}" --upload-file dist/nodeapp.zip \
       "${NEXUS_URL}com/nodeapp/nodeapp/${CI_COMMIT_SHORT_SHA}/nodeapp-${CI_COMMIT_SHORT_SHA}.zip"
-  dependencies:
-    - build
   only:
     - main
