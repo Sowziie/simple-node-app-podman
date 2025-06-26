@@ -8,6 +8,7 @@ variables:
   DOCKER_DRIVER: "overlay2"
   DOCKER_TLS_CERTDIR: ""
   GIT_COMMIT_SHORT: "$CI_COMMIT_SHORT_SHA"
+  CI_PROJECT_DIR: "$CI_PROJECT_DIR"  # Assure la disponibilité du chemin
 
   # SonarQube
   SONAR_HOST_URL: "http://3.80.121.146:9000"
@@ -59,22 +60,24 @@ sonar:
   allow_failure: false
 
 ###########################
-# 3) Podman Build & Push
+# 3) Podman Build & Push (CORRIGÉ)
 ###########################
-
 docker:
   stage: docker
   tags:
     - podman
     - node
   script:
+    - echo "📂 Contenu du répertoire:"
+    - ls -la  # Debug: vérifie les fichiers présents
+    
     - echo "🔐 Connexion à Docker Hub via Podman"
     - echo "$DOCKER_PASS" | podman login docker.io -u "$DOCKER_USER" --password-stdin
 
-    - echo "🐳 Build de l’image Node.js"
-    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT .
-
-    - echo "📤 Push de l’image versionnée"
+    - echo "🐳 Build de l'image Node.js"
+    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT -f Dockerfile .
+    
+    - echo "📤 Push de l'image versionnée"
     - podman push docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
 
     - echo "🏷️ Tag en latest"
@@ -84,7 +87,7 @@ docker:
     - podman push docker.io/$DOCKER_USER/nodeapp:latest
 
 ###########################
-# 4) Trivy Scan avec Podman
+# 4) Trivy Scan avec Podman (CORRIGÉ)
 ###########################
 scan:
   stage: scan
@@ -92,6 +95,15 @@ scan:
     - podman
     - node
   script:
-    - echo "🔎 Scan Trivy de l'image locale"
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
+    - echo "🔐 Connexion à Docker Hub via Podman"
+    - echo "$DOCKER_PASS" | podman login docker.io -u "$DOCKER_USER" --password-stdin
+    
+    - echo "⬇️ Pull de l'image à scanner"
+    - podman pull docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
+    
+    - echo "🔎 Scan Trivy de l'image"
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
+    
+    - echo "🧹 Nettoyage de l'image"
+    - podman rmi docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
   allow_failure: true
