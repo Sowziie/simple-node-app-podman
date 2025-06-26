@@ -27,13 +27,13 @@ build:
     - echo "🛠️ Installation des dépendances..."
     - npm install
     - echo "🧪 Lancement des tests..."
-    - npm test || echo "Aucun test défini"
+    - npm test || echo "⚠️ Aucun test défini"
   artifacts:
     paths:
       - node_modules/
 
 ###########################
-# 2) Analyse SonarQube (via sonar-scanner CLI)
+# 2) Analyse SonarQube
 ###########################
 sonar:
   stage: sonar
@@ -49,12 +49,13 @@ sonar:
       - .sonar/cache
   script:
     - echo "🔍 Analyse SonarQube"
-    - sonar-scanner \
-        -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
-        -Dsonar.sources="." \
-        -Dsonar.host.url="${SONAR_HOST_URL}" \
-        -Dsonar.login="${SONAR_TOKEN}" \
-        -Dsonar.qualitygate.wait=true
+    - >
+      sonar-scanner
+      -Dsonar.projectKey=${SONAR_PROJECT_KEY}
+      -Dsonar.sources=.
+      -Dsonar.host.url=${SONAR_HOST_URL}
+      -Dsonar.login=${SONAR_TOKEN}
+      -Dsonar.qualitygate.wait=true
   allow_failure: false
 
 ###########################
