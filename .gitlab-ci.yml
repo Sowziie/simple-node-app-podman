@@ -1,11 +1,11 @@
 stages:
   - test
 
-
-test-runner:
+podman-test:
   stage: test
   tags:
     - podman
     - node
   script:
-    - echo "✅ Mon Podman-Node Runner fonctionne correctement !"
+    - echo "👋 Test Podman sur GitLab Runner"
+    - podman --version
