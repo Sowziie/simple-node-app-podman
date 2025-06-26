@@ -3,7 +3,7 @@ stages:
   - sonar
   - docker
   - scan
-  - deploy   # ajout de l'étape déploiement
+
 
 variables:
   DOCKER_DRIVER: "overlay2"
@@ -18,13 +18,8 @@ variables:
   DOCKER_USER: "$DOCKER_USER"
   DOCKER_PASS: "$DOCKER_PASS"
 
-  # Nexus
-  NEXUS_URL: "http://13.222.133.90:8081/repository/maven-snapshots/"
-  NEXUS_USER: "$NEXUS_USER"
-  NEXUS_PASS: "$NEXUS_PASS"
-
 ###########################
-# 1) Install dependencies, tests & create artefact
+# 1) Install dependencies & test
 ###########################
 build:
   stage: build
@@ -34,16 +29,12 @@ build:
     - npm install
     - echo "🧪 Lancement des tests..."
     - npm test || echo "⚠️ Aucun test défini"
-    - echo "📦 Création de l'artefact zip..."
-    - mkdir -p dist
-    - zip -r dist/nodeapp.zip . -x "node_modules/*" ".git/*" "dist/*"
   artifacts:
     paths:
-      - dist/nodeapp.zip
       - node_modules/
 
 ###########################
-# 2) SonarQube
+# 2) Analyse SonarQube
 ###########################
 sonar:
   stage: sonar
@@ -98,19 +89,3 @@ scan:
         image --exit-code 1 --severity HIGH,CRITICAL \
         "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
   allow_failure: true
-
-###########################
-# 5) Déploiement vers Nexus
-###########################
-deploy:
-  stage: deploy
-  image: curlimages/curl:latest
-  dependencies:
-    - build
-  script:
-    - echo "📦 Déploiement de l'artefact vers Nexus..."
-    - |
-      curl -v --fail --user "${NEXUS_USER}:${NEXUS_PASS}" --upload-file dist/nodeapp.zip \
-      "${NEXUS_URL}com/nodeapp/nodeapp/${GIT_COMMIT_SHORT}/nodeapp-${GIT_COMMIT_SHORT}.zip"
-  only:
-    - main
