@@ -8,7 +8,6 @@ variables:
   DOCKER_DRIVER: "overlay2"
   DOCKER_TLS_CERTDIR: ""
   GIT_COMMIT_SHORT: "$CI_COMMIT_SHORT_SHA"
-  CI_PROJECT_DIR: "$CI_PROJECT_DIR"  # Assure la disponibilité du chemin
 
   # SonarQube
   SONAR_HOST_URL: "http://3.80.121.146:9000"
@@ -67,16 +66,20 @@ docker:
   tags:
     - podman
     - node
+  before_script:
+    # Vérification critique du Dockerfile
+    - echo "🔍 Vérification du Dockerfile..."
+    - if [ ! -f "Dockerfile" ]; then echo "❌ ERREUR: Dockerfile manquant!"; exit 1; fi
+    - echo "✅ Dockerfile trouvé"
+    - echo "📄 Contenu du Dockerfile:"
+    - cat Dockerfile
   script:
-    - echo "📂 Contenu du répertoire:"
-    - ls -la  # Debug: vérifie les fichiers présents
-    
     - echo "🔐 Connexion à Docker Hub via Podman"
     - echo "$DOCKER_PASS" | podman login docker.io -u "$DOCKER_USER" --password-stdin
 
     - echo "🐳 Build de l'image Node.js"
-    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT -f Dockerfile .
-    
+    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT .
+
     - echo "📤 Push de l'image versionnée"
     - podman push docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
 
