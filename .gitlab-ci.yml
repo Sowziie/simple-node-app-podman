@@ -73,6 +73,7 @@ docker:
     - podman tag "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" "$DOCKER_USER/nodeapp:latest"
     - podman push "$DOCKER_USER/nodeapp:latest"
 
+
 ###########################
 # 4) Trivy Scan avec Podman
 ###########################
