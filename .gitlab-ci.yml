@@ -3,7 +3,7 @@ stages:
   - sonar
   - docker
   - scan
-  - deploy   # ajout stage deploy
+  - deploy
 
 variables:
   DOCKER_DRIVER: "overlay2"
@@ -34,8 +34,12 @@ build:
     - npm install
     - echo "🧪 Lancement des tests..."
     - npm test || echo "⚠️ Aucun test défini"
+    - echo "📦 Packaging de l'application..."
+    - mkdir -p dist
+    - zip -r dist/nodeapp.zip . -x node_modules/\* .git/\* dist/\*
   artifacts:
     paths:
+      - dist/nodeapp.zip
       - node_modules/
 
 ###########################
@@ -96,34 +100,17 @@ scan:
   allow_failure: true
 
 ###########################
-# 5) Déploiement artefact ZIP vers Nexus
+# 5) Déploiement vers Nexus
 ###########################
 deploy:
   stage: deploy
-  image: maven:3.8.5-openjdk-17
+  image: curlimages/curl:latest
   script:
-    - echo "📤 Création du package ZIP à déployer"
-    - zip -r nodeapp.zip .
-    - echo "📦 Déploiement vers Nexus"
+    - echo "📦 Déploiement de l’artefact vers Nexus..."
     - |
-      cat > settings.xml <<EOF
-<settings>
-  <servers>
-    <server>
-      <id>nexus</id>
-      <username>${NEXUS_USER}</username>
-      <password>${NEXUS_PASS}</password>
-    </server>
-  </servers>
-</settings>
-EOF
-    - mvn deploy:deploy-file \
-        -Durl=${NEXUS_URL} \
-        -DrepositoryId=nexus \
-        -Dfile=nodeapp.zip \
-        -DgroupId=com.nodeapp \
-        -DartifactId=nodeapp \
-        -Dversion=1.0.0-SNAPSHOT \
-        -Dpackaging=zip \
-        -s settings.xml
-    - rm -f settings.xml nodeapp.zip
+      curl -v --fail --user "${NEXUS_USER}:${NEXUS_PASS}" --upload-file dist/nodeapp.zip \
+      "${NEXUS_URL}com/nodeapp/nodeapp/${CI_COMMIT_SHORT_SHA}/nodeapp-${CI_COMMIT_SHORT_SHA}.zip"
+  dependencies:
+    - build
+  only:
+    - main
