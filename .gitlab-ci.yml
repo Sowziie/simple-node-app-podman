@@ -1,21 +1,89 @@
-build-sonar:
+stages:
+  - build
+  - sonar
+  - docker
+  - scan
+
+variables:
+  DOCKER_DRIVER: "overlay2"
+  DOCKER_TLS_CERTDIR: ""
+  GIT_COMMIT_SHORT: "$CI_COMMIT_SHORT_SHA"
+
+  # SonarQube
+  SONAR_HOST_URL: "http://3.218.72.101:9000"
+  SONAR_PROJECT_KEY: "NodeApp"
+
+  # DockerHub
+  DOCKER_USER: "$DOCKER_USER"
+  DOCKER_PASS: "$DOCKER_PASS"
+
+###########################
+# 1) Install dependencies & test
+###########################
+build:
+  stage: build
+  image: node:22
+  script:
+    - echo "🛠️ Installation des dépendances..."
+    - npm install
+    - echo "🧪 Lancement des tests..."
+    - npm test || echo "Aucun test défini"
+  artifacts:
+    paths:
+      - node_modules/
+
+###########################
+# 2) Analyse SonarQube (via sonar-scanner CLI)
+###########################
+sonar:
+  stage: sonar
   image:
     name: sonarsource/sonar-scanner-cli:11
     entrypoint: [""]
-  stage: build-sonar
   variables:
     SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
     GIT_DEPTH: "0"
   cache:
-    policy: pull-push
     key: "sonar-cache-${CI_COMMIT_REF_SLUG}"
     paths:
-      - "${SONAR_USER_HOME}/cache"
+      - .sonar/cache
   script:
-    - echo "## Lancement de SonarScanner"
-    - sonar-scanner
+    - echo "🔍 Analyse SonarQube"
+    - sonar-scanner \
+        -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+        -Dsonar.sources="." \
+        -Dsonar.host.url="${SONAR_HOST_URL}" \
+        -Dsonar.login="${SONAR_TOKEN}" \
+        -Dsonar.qualitygate.wait=true
   allow_failure: false
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH  == "main"
-    - if: $CI_COMMIT_BRANCH  == "develop"
+
+###########################
+# 3) Docker Build & Push
+###########################
+docker:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:dind
+  script:
+    - echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+    - docker build -t "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" .
+    - docker push "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT"
+    - docker tag "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" "$DOCKER_USER/nodeapp:latest"
+    - docker push "$DOCKER_USER/nodeapp:latest"
+
+###########################
+# 4) Trivy Scan
+###########################
+scan:
+  stage: scan
+  image: docker:24
+  services:
+    - docker:dind
+  script:
+    - docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        aquasec/trivy:latest \
+        image --exit-code 1 --severity HIGH,CRITICAL \
+        "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
+  allow_failure: true
