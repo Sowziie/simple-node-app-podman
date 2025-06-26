@@ -4,6 +4,7 @@ stages:
   - docker
   - scan
 
+
 variables:
   DOCKER_DRIVER: "overlay2"
   DOCKER_TLS_CERTDIR: ""
@@ -59,39 +60,32 @@ sonar:
   allow_failure: false
 
 ###########################
-# 3) Podman Build & Push
+# 3) Docker Build & Push
 ###########################
-
 docker:
   stage: docker
-  tags:
-    - podman
-    - node
+  image: docker:24
+  services:
+    - docker:dind
   script:
-    - echo "🔐 Connexion à Docker Hub via Podman"
-    - echo "$DOCKER_PASS" | podman login docker.io -u "$DOCKER_USER" --password-stdin
-
-    - echo "🐳 Build de l’image Node.js"
-    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT .
-
-    - echo "📤 Push de l’image versionnée"
-    - podman push docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
-
-    - echo "🏷️ Tag en latest"
-    - podman tag docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT docker.io/$DOCKER_USER/nodeapp:latest
-
-    - echo "📤 Push du tag latest"
-    - podman push docker.io/$DOCKER_USER/nodeapp:latest
+    - echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+    - docker build -t "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" .
+    - docker push "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT"
+    - docker tag "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" "$DOCKER_USER/nodeapp:latest"
+    - docker push "$DOCKER_USER/nodeapp:latest"
 
 ###########################
-# 4) Trivy Scan avec Podman
+# 4) Trivy Scan
 ###########################
 scan:
   stage: scan
-  tags:
-    - podman
-    - node
+  image: docker:24
+  services:
+    - docker:dind
   script:
-    - echo "🔎 Scan Trivy de l'image locale"
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
+    - docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        aquasec/trivy:latest \
+        image --exit-code 1 --severity HIGH,CRITICAL \
+        "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
   allow_failure: true
