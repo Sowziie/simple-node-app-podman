@@ -3,7 +3,7 @@ stages:
   - sonar
   - docker
   - scan
-  - deploy   # ajout de la nouvelle étape
+  - deploy   # ajout de l'étape déploiement
 
 variables:
   DOCKER_DRIVER: "overlay2"
@@ -24,7 +24,7 @@ variables:
   NEXUS_PASS: "$NEXUS_PASS"
 
 ###########################
-# 1) Install dependencies & test
+# 1) Install dependencies, tests & create artefact
 ###########################
 build:
   stage: build
@@ -34,7 +34,7 @@ build:
     - npm install
     - echo "🧪 Lancement des tests..."
     - npm test || echo "⚠️ Aucun test défini"
-    - echo "📦 Packaging de l'application..."
+    - echo "📦 Création de l'artefact zip..."
     - mkdir -p dist
     - zip -r dist/nodeapp.zip . -x "node_modules/*" ".git/*" "dist/*"
   artifacts:
@@ -43,7 +43,7 @@ build:
       - node_modules/
 
 ###########################
-# 2) Analyse SonarQube
+# 2) SonarQube
 ###########################
 sonar:
   stage: sonar
@@ -108,9 +108,9 @@ deploy:
   dependencies:
     - build
   script:
-    - echo "📦 Déploiement de l’artefact vers Nexus..."
+    - echo "📦 Déploiement de l'artefact vers Nexus..."
     - |
       curl -v --fail --user "${NEXUS_USER}:${NEXUS_PASS}" --upload-file dist/nodeapp.zip \
-      "${NEXUS_URL}com/nodeapp/nodeapp/${CI_COMMIT_SHORT_SHA}/nodeapp-${CI_COMMIT_SHORT_SHA}.zip"
+      "${NEXUS_URL}com/nodeapp/nodeapp/${GIT_COMMIT_SHORT}/nodeapp-${GIT_COMMIT_SHORT}.zip"
   only:
     - main
