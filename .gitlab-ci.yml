@@ -61,18 +61,27 @@ sonar:
 ###########################
 # 3) Podman Build & Push
 ###########################
+
 docker:
   stage: docker
   tags:
     - podman
     - node
   script:
+    - echo "🔐 Connexion à Docker Hub via Podman"
     - echo "$DOCKER_PASS" | podman login docker.io -u "$DOCKER_USER" --password-stdin
-    - podman build -t "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" .
-    - podman push "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT"
-    - podman tag "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" "$DOCKER_USER/nodeapp:latest"
-    - podman push "$DOCKER_USER/nodeapp:latest"
 
+    - echo "🐳 Build de l’image Node.js"
+    - podman build -t docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT .
+
+    - echo "📤 Push de l’image versionnée"
+    - podman push docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT
+
+    - echo "🏷️ Tag en latest"
+    - podman tag docker.io/$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT docker.io/$DOCKER_USER/nodeapp:latest
+
+    - echo "📤 Push du tag latest"
+    - podman push docker.io/$DOCKER_USER/nodeapp:latest
 
 ###########################
 # 4) Trivy Scan avec Podman
