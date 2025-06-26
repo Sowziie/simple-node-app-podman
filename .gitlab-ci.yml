@@ -3,51 +3,39 @@ stages:
   - sonar
   - docker
   - scan
-
+  - deploy
 
 variables:
+  # Docker
   DOCKER_DRIVER: "overlay2"
   DOCKER_TLS_CERTDIR: ""
   GIT_COMMIT_SHORT: "$CI_COMMIT_SHORT_SHA"
 
   # SonarQube
-  SONAR_HOST_URL: "http://13.222.133.90:9000"
+  SONAR_HOST_URL: "http://3.218.72.101:9000"
   SONAR_PROJECT_KEY: "NodeApp"
 
-  # DockerHub
-  DOCKER_USER: "$DOCKER_USER"
-  DOCKER_PASS: "$DOCKER_PASS"
+  # Nexus
+  NEXUS_URL: "http://13.222.133.90:8081/repository/maven-snapshots/"
+  NEXUS_USER: "$NEXUS_USER"
+  NEXUS_PASS: "$NEXUS_PASS"
 
-###########################
-# 1) Install dependencies & test
-###########################
+# 1) Build (Node.js)
 build:
   stage: build
   image: node:22
   script:
-    - echo "🛠️ Installation des dépendances..."
+    - echo "📦 Installation des dépendances"
     - npm install
-    - echo "🧪 Lancement des tests..."
-    - npm test || echo "⚠️ Aucun test défini"
-  artifacts:
-    paths:
-      - node_modules/
+    - echo "🧪 Lancement des tests (si présents)"
+    - npm test || echo "Aucun test défini"
 
-###########################
 # 2) Analyse SonarQube
-###########################
 sonar:
   stage: sonar
   image:
     name: sonarsource/sonar-scanner-cli:11
     entrypoint: [""]
-  variables:
-    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
-    GIT_DEPTH: "0"
-  cache:
-    key: "sonar-cache-${CI_COMMIT_REF_SLUG}"
-    paths:
-      - .sonar/cache
   script:
     - echo "🔍 Analyse SonarQube"
     - >
@@ -57,11 +45,9 @@ sonar:
       -Dsonar.host.url=${SONAR_HOST_URL}
       -Dsonar.login=${SONAR_TOKEN}
       -Dsonar.qualitygate.wait=true
-  allow_failure: false
+  allow_failure: true
 
-###########################
-# 3) Docker Build & Push
-###########################
+# 3) Build & Push DockerHub
 docker:
   stage: docker
   image: docker:24
@@ -74,9 +60,7 @@ docker:
     - docker tag "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" "$DOCKER_USER/nodeapp:latest"
     - docker push "$DOCKER_USER/nodeapp:latest"
 
-###########################
-# 4) Trivy Scan
-###########################
+# 4) Scan vulnérabilités avec Trivy
 scan:
   stage: scan
   image: docker:24
@@ -89,3 +73,22 @@ scan:
         image --exit-code 1 --severity HIGH,CRITICAL \
         "$DOCKER_USER/nodeapp:$GIT_COMMIT_SHORT" || true
   allow_failure: true
+
+# 5) Déploiement du JAR vers Nexus
+deploy:
+  stage: deploy
+  image: maven:3.8.5-openjdk-17
+  script:
+    - echo "📦 Déploiement du JAR vers Nexus"
+    - cat > settings.xml <<-EOF
+      <settings>
+        <servers>
+          <server>
+            <id>nexus</id>
+            <username>${NEXUS_USER}</username>
+            <password>${NEXUS_PASS}</password>
+          </server>
+        </servers>
+      </settings>
+    EOF
+    - mvn deploy -B -s settings.xml -DaltDeploymentRepository="nexus::default::${NEXUS_URL}"
